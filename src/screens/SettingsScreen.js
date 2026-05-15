@@ -93,6 +93,14 @@ export default function SettingsScreen({ navigation }) {
           arrow
         />
 
+        <SettingsRow
+          icon="🗺"
+          title="Pharmacy map"
+          subtitle="Find pharmacies and drug availability near you"
+          onPress={() => navigation.navigate("PharmacyMap")}
+          arrow
+        />
+
         <SectionTitle text="About · حول التطبيق" />
         <SettingsRow
           icon="🏥"

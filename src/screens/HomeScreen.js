@@ -16,7 +16,6 @@ import {
   Linking,
 } from "react-native";
 import { Camera } from "expo-camera";
-import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import BarcodeScanner from "../components/BarcodeScanner";
 import DrugCard from "../components/DrugCard";
@@ -41,10 +40,6 @@ export default function HomeScreen({ navigation }) {
   const [crowdSelected, setCrowdSelected] = useState(null);
   const [crowdSubmitting, setCrowdSubmitting] = useState(false);
   const [crowdDone, setCrowdDone] = useState(false);
-
-  // Image verify
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [verifyResult, setVerifyResult] = useState(null);
 
   const scanned = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -78,7 +73,6 @@ export default function HomeScreen({ navigation }) {
     setCrowdResults([]);
     setCrowdSelected(null);
     setCrowdDone(false);
-    setVerifyResult(null);
   }
 
   async function handleBarcode({ data }) {
@@ -218,70 +212,6 @@ export default function HomeScreen({ navigation }) {
       await Linking.openURL(waUrl);
     } else {
       await Share.share({ message: msg });
-    }
-  }
-
-  async function handleVerifyImage() {
-    if (!result?.trade_name) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      const cam = await ImagePicker.requestCameraPermissionsAsync();
-      if (cam.status !== "granted") {
-        Alert.alert(
-          "Permission needed",
-          "Please allow camera or photo library access.",
-        );
-        return;
-      }
-    }
-    Alert.alert(
-      "Verify packaging",
-      "Take a clear photo of the front of the drug box.",
-      [
-        { text: "Take photo", onPress: () => pickImage("camera") },
-        { text: "Choose from library", onPress: () => pickImage("library") },
-        { text: "Cancel", style: "cancel" },
-      ],
-    );
-  }
-
-  async function pickImage(source) {
-    const opts = {
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      base64: false,
-    };
-    const res =
-      source === "camera"
-        ? await ImagePicker.launchCameraAsync(opts)
-        : await ImagePicker.launchImageLibraryAsync(opts);
-    if (res.canceled) return;
-    await sendImageToAPI(res.assets[0].uri);
-  }
-
-  async function sendImageToAPI(uri) {
-    setVerifyLoading(true);
-    setVerifyResult(null);
-    try {
-      const formData = new FormData();
-      formData.append("image", {
-        uri,
-        name: "drug_photo.jpg",
-        type: "image/jpeg",
-      });
-      const res = await axios.post(
-        `${API_URL}/drugs/verify-image?drug_name=${encodeURIComponent(result.trade_name)}`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } },
-      );
-      setVerifyResult(res.data);
-    } catch {
-      Alert.alert(
-        "Error",
-        "Could not analyze image. Make sure your API is running.",
-      );
-    } finally {
-      setVerifyLoading(false);
     }
   }
 
@@ -463,30 +393,6 @@ export default function HomeScreen({ navigation }) {
                     Share on WhatsApp · شارك على واتساب
                   </Text>
                 </TouchableOpacity>
-              )}
-
-              {/* Image verify */}
-              <TouchableOpacity
-                style={s.verifyBtn}
-                onPress={handleVerifyImage}
-                disabled={verifyLoading}
-                activeOpacity={0.85}
-              >
-                {verifyLoading ? (
-                  <ActivityIndicator color={C.teal} size="small" />
-                ) : (
-                  <>
-                    <Text style={s.verifyBtnIcon}>📷</Text>
-                    <Text style={s.verifyBtnText}>
-                      Verify packaging with AI · تحقق من العبوة بالذكاء
-                      الاصطناعي
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {verifyResult && !verifyLoading && (
-                <VerifyResult data={verifyResult} />
               )}
 
               {/* Crowdsource */}
@@ -672,62 +578,6 @@ export default function HomeScreen({ navigation }) {
           MoPH data · Not medical advice · بيانات وزارة الصحة
         </Text>
       </View>
-    </View>
-  );
-}
-
-function VerifyResult({ data }) {
-  const cfg = {
-    likely_authentic: {
-      bg: C.successBg,
-      border: "#6EE7B7",
-      text: C.successText,
-      icon: "✓",
-      label: "Packaging looks authentic",
-    },
-    suspicious: {
-      bg: C.dangerBg,
-      border: "#FCA5A5",
-      text: C.dangerText,
-      icon: "⚠",
-      label: "Packaging looks suspicious",
-    },
-    unknown: {
-      bg: C.warnBg,
-      border: "#FCD34D",
-      text: C.warnText,
-      icon: "?",
-      label: "Could not assess packaging",
-    },
-  };
-  const c = cfg[data.verdict] || cfg.unknown;
-  const pct = Math.round((data.confidence || 0) * 100);
-
-  return (
-    <View
-      style={[s.verifyCard, { backgroundColor: c.bg, borderColor: c.border }]}
-    >
-      <View style={s.verifyCardHeader}>
-        <View style={[s.verifyCardIcon, { backgroundColor: c.text }]}>
-          <Text style={s.verifyCardIconText}>{c.icon}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.verifyCardTitle, { color: c.text }]}>{c.label}</Text>
-          <Text style={[s.verifyCardConf, { color: c.text }]}>
-            Confidence: {pct}%
-          </Text>
-        </View>
-      </View>
-      {data.flags?.length > 0 && (
-        <View style={s.verifyFlags}>
-          {data.flags.map((flag, i) => (
-            <View key={i} style={s.verifyFlag}>
-              <Text style={s.verifyFlagText}>· {flag}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-      <Text style={[s.verifyExpl, { color: c.text }]}>{data.explanation}</Text>
     </View>
   );
 }

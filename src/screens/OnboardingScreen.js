@@ -8,6 +8,7 @@ import {
   StatusBar,
 } from "react-native";
 import { C, F } from "../theme";
+import { Image } from "react-native";
 
 export default function OnboardingScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -101,9 +102,11 @@ export default function OnboardingScreen({ navigation }) {
         {/* Logo mark */}
         <View style={s.logoWrap}>
           <View style={s.logoOuter}>
-            <View style={s.logoInner}>
-              <Text style={s.logoD}>D</Text>
-            </View>
+            <Image
+              source={require("../../assets/icon.png")}
+              style={{ width: 66, height: 66, borderRadius: 16 }}
+              resizeMode="contain"
+            />
           </View>
           {/* Pulse ring */}
           <Animated.View

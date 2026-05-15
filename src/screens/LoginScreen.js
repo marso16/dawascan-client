@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Image,
 } from "react-native";
 import { supabase } from "../supabase";
 import { C, F, S } from "../theme";
@@ -53,9 +54,11 @@ export default function LoginScreen({ navigation }) {
       {/* Top navy section */}
       <View style={s.top}>
         <View style={s.logoRow}>
-          <View style={s.logoMark}>
-            <Text style={s.logoD}>D</Text>
-          </View>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={{ width: 36, height: 36, borderRadius: 10 }}
+            resizeMode="contain"
+          />
           <Text style={s.logoName}>DawaScan</Text>
         </View>
         <Text style={s.topTitle}>Welcome back</Text>
