@@ -14,6 +14,7 @@ import AdminHomeScreen from "./src/screens/AdminHomeScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import ScanHistoryScreen from "./src/screens/ScanHistoryScreen";
 import ShortagesScreen from "./src/screens/ShortagesScreen";
+import PharmacyMapScreen from "./src/screens/PharmacyMapScreen";
 
 const Stack = createStackNavigator();
 
@@ -67,6 +68,7 @@ export default function App() {
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="ScanHistory" component={ScanHistoryScreen} />
         <Stack.Screen name="Shortages" component={ShortagesScreen} />
+        <Stack.Screen name="PharmacyMap" component={PharmacyMapScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
