@@ -28,6 +28,8 @@ export default function ProfileScreen({ navigation }) {
   const [passMsg, setPassMsg] = useState("");
   const [infoError, setInfoError] = useState("");
   const [passError, setPassError] = useState("");
+  const [deletionRequest, setDeletionRequest] = useState(null);
+  const [deletionLoading, setDeletionLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -35,9 +37,21 @@ export default function ProfileScreen({ navigation }) {
         setUser(data.user);
         setName(data.user.user_metadata?.full_name || "");
         setEmail(data.user.email || "");
+        checkDeletionRequest(data.user.id);
       }
     });
   }, []);
+
+  async function checkDeletionRequest(userId) {
+    const { data } = await supabase
+      .from("account_deletion_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("cancelled", false)
+      .order("requested_at", { ascending: false })
+      .limit(1);
+    if (data?.length > 0) setDeletionRequest(data[0]);
+  }
 
   async function handleUpdateInfo() {
     if (!name.trim()) {
@@ -71,7 +85,6 @@ export default function ProfileScreen({ navigation }) {
       setPassError("Passwords do not match.");
       return;
     }
-
     setSavingPass(true);
     setPassError("");
     setPassMsg("");
@@ -86,6 +99,74 @@ export default function ProfileScreen({ navigation }) {
     setConfirmPassword("");
   }
 
+  async function handleRequestDeletion() {
+    Alert.alert(
+      "Delete account",
+      "Your account will be permanently deleted after 7 days. You can cancel this request anytime before then.\n\nحذف الحساب نهائياً بعد 7 أيام.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Request deletion",
+          style: "destructive",
+          onPress: async () => {
+            setDeletionLoading(true);
+            const deleteAfter = new Date();
+            deleteAfter.setDate(deleteAfter.getDate() + 7);
+            const { data, error } = await supabase
+              .from("account_deletion_requests")
+              .insert({
+                user_id: user.id,
+                delete_after: deleteAfter.toISOString(),
+              })
+              .select()
+              .single();
+            setDeletionLoading(false);
+            if (error) {
+              Alert.alert("Error", "Could not submit deletion request.");
+              return;
+            }
+            setDeletionRequest(data);
+            Alert.alert(
+              "Request submitted",
+              `Your account will be deleted on ${deleteAfter.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. You can cancel this anytime from your profile.`,
+            );
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleCancelDeletion() {
+    Alert.alert(
+      "Cancel deletion",
+      "Your account will NOT be deleted. Do you want to cancel the deletion request?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, cancel deletion",
+          onPress: async () => {
+            setDeletionLoading(true);
+            await supabase
+              .from("account_deletion_requests")
+              .update({ cancelled: true })
+              .eq("id", deletionRequest.id);
+            setDeletionRequest(null);
+            setDeletionLoading(false);
+            Alert.alert(
+              "Cancelled",
+              "Your account deletion request has been cancelled.",
+            );
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigation.replace("Login");
+  }
+
   const initials = name
     ? name
         .split(" ")
@@ -95,6 +176,14 @@ export default function ProfileScreen({ navigation }) {
         .slice(0, 2)
     : "?";
 
+  const deletionDate = deletionRequest
+    ? new Date(deletionRequest.delete_after).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
   return (
     <KeyboardAvoidingView
       style={s.root}
@@ -102,7 +191,6 @@ export default function ProfileScreen({ navigation }) {
     >
       <StatusBar barStyle="light-content" backgroundColor={C.navy} />
 
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Text style={s.backText}>← Back</Text>
@@ -126,15 +214,28 @@ export default function ProfileScreen({ navigation }) {
           <Text style={s.avatarEmail}>{email}</Text>
         </View>
 
-        {/* ── Personal info ── */}
+        {/* Deletion warning banner */}
+        {deletionRequest && (
+          <View style={s.deletionBanner}>
+            <Text style={s.deletionBannerIcon}>⚠️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.deletionBannerTitle}>
+                Account scheduled for deletion
+              </Text>
+              <Text style={s.deletionBannerDesc}>
+                Your account will be permanently deleted on {deletionDate}.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Personal info */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>
             Personal information · معلومات شخصية
           </Text>
-
           {infoError ? <MsgBox text={infoError} type="error" /> : null}
           {infoMsg ? <MsgBox text={infoMsg} type="success" /> : null}
-
           <Label text="Full name" />
           <TextInput
             style={s.input}
@@ -144,13 +245,11 @@ export default function ProfileScreen({ navigation }) {
             placeholderTextColor={C.ash}
             autoCorrect={false}
           />
-
           <Label text="Email address" />
           <View style={s.inputDisabled}>
             <Text style={s.inputDisabledText}>{email}</Text>
           </View>
           <Text style={s.inputHint}>Email cannot be changed.</Text>
-
           <TouchableOpacity
             style={[s.primaryBtn, savingInfo && s.primaryBtnDisabled]}
             onPress={handleUpdateInfo}
@@ -165,15 +264,13 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── Change password ── */}
+        {/* Change password */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>
             Change password · تغيير كلمة المرور
           </Text>
-
           {passError ? <MsgBox text={passError} type="error" /> : null}
           {passMsg ? <MsgBox text={passMsg} type="success" /> : null}
-
           <Label text="New password" />
           <View style={s.passWrap}>
             <TextInput
@@ -191,7 +288,6 @@ export default function ProfileScreen({ navigation }) {
               <Text style={s.passToggleText}>{showPass ? "Hide" : "Show"}</Text>
             </TouchableOpacity>
           </View>
-
           <Label text="Confirm new password" />
           <TextInput
             style={s.input}
@@ -201,7 +297,6 @@ export default function ProfileScreen({ navigation }) {
             placeholderTextColor={C.ash}
             secureTextEntry={!showPass}
           />
-
           <TouchableOpacity
             style={[s.primaryBtn, savingPass && s.primaryBtnDisabled]}
             onPress={handleUpdatePassword}
@@ -216,19 +311,52 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── Danger zone ── */}
+        {/* Account actions */}
         <View style={s.dangerZone}>
           <Text style={s.dangerTitle}>Account actions</Text>
+
           <TouchableOpacity
             style={s.signOutBtn}
-            onPress={async () => {
-              await supabase.auth.signOut();
-              navigation.replace("Login");
-            }}
+            onPress={handleSignOut}
             activeOpacity={0.8}
           >
             <Text style={s.signOutText}>Sign out · تسجيل الخروج</Text>
           </TouchableOpacity>
+
+          {deletionRequest ? (
+            <TouchableOpacity
+              style={[s.cancelDeletionBtn, deletionLoading && { opacity: 0.6 }]}
+              onPress={handleCancelDeletion}
+              disabled={deletionLoading}
+              activeOpacity={0.8}
+            >
+              {deletionLoading ? (
+                <ActivityIndicator color={C.teal} />
+              ) : (
+                <Text style={s.cancelDeletionText}>
+                  Cancel account deletion · إلغاء طلب الحذف
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[s.deleteBtn, deletionLoading && { opacity: 0.6 }]}
+              onPress={handleRequestDeletion}
+              disabled={deletionLoading}
+              activeOpacity={0.8}
+            >
+              {deletionLoading ? (
+                <ActivityIndicator color={C.dangerText} />
+              ) : (
+                <Text style={s.deleteBtnText}>Delete account · حذف الحساب</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <Text style={s.deleteHint}>
+            Deleted accounts are permanently removed after 7 days. You can
+            cancel anytime before then.
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -273,8 +401,6 @@ const s = StyleSheet.create({
   },
   scroll: { flex: 1 },
   body: { padding: 20, paddingBottom: 60 },
-
-  // Avatar
   avatarWrap: { alignItems: "center", paddingVertical: 24 },
   avatar: {
     width: 80,
@@ -289,8 +415,29 @@ const s = StyleSheet.create({
   avatarText: { color: C.white, fontSize: F.xxl, fontWeight: F.black },
   avatarName: { fontSize: F.lg, fontWeight: F.bold, color: C.ink2 },
   avatarEmail: { fontSize: F.sm, color: C.slate, marginTop: 4 },
-
-  // Section
+  deletionBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: C.warnBg,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  deletionBannerIcon: { fontSize: 20 },
+  deletionBannerTitle: {
+    fontSize: F.sm,
+    fontWeight: F.bold,
+    color: C.warnText,
+  },
+  deletionBannerDesc: {
+    fontSize: F.xs,
+    color: C.warnText,
+    marginTop: 3,
+    lineHeight: 18,
+  },
   section: {
     backgroundColor: C.white,
     borderRadius: 20,
@@ -306,8 +453,6 @@ const s = StyleSheet.create({
     color: C.slate,
     marginBottom: 16,
   },
-
-  // Labels + inputs
   label: {
     fontSize: F.xs,
     fontWeight: F.semibold,
@@ -347,8 +492,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   passToggleText: { color: C.teal, fontSize: F.sm, fontWeight: F.semibold },
-
-  // Buttons
   primaryBtn: {
     backgroundColor: C.navy,
     borderRadius: 14,
@@ -358,8 +501,6 @@ const s = StyleSheet.create({
   },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: { color: C.white, fontSize: F.md, fontWeight: F.semibold },
-
-  // Messages
   msgBox: { borderRadius: 10, padding: 12, marginBottom: 4 },
   msgBoxError: {
     backgroundColor: C.dangerBg,
@@ -374,16 +515,14 @@ const s = StyleSheet.create({
   msgText: { fontSize: F.sm, lineHeight: 20 },
   msgTextError: { color: C.dangerText },
   msgTextSuccess: { color: C.successText },
-
-  // Danger zone
-  dangerZone: { marginTop: 8 },
+  dangerZone: { marginTop: 8, gap: 10 },
   dangerTitle: {
     fontSize: F.xs,
     fontWeight: F.semibold,
     color: C.ash,
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    marginBottom: 8,
+    marginBottom: 2,
   },
   signOutBtn: {
     borderWidth: 1.5,
@@ -394,4 +533,32 @@ const s = StyleSheet.create({
     backgroundColor: C.dangerBg,
   },
   signOutText: { color: C.dangerText, fontSize: F.md, fontWeight: F.semibold },
+  deleteBtn: {
+    borderWidth: 1.5,
+    borderColor: C.silver,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    backgroundColor: C.white,
+  },
+  deleteBtnText: { color: C.dangerText, fontSize: F.md, fontWeight: F.medium },
+  cancelDeletionBtn: {
+    borderWidth: 1.5,
+    borderColor: C.teal,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    backgroundColor: C.tealBg,
+  },
+  cancelDeletionText: {
+    color: C.tealText,
+    fontSize: F.md,
+    fontWeight: F.semibold,
+  },
+  deleteHint: {
+    fontSize: F.xs,
+    color: C.ash,
+    textAlign: "center",
+    lineHeight: 18,
+  },
 });

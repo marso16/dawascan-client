@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Image,
+  Switch,
 } from "react-native";
 import { supabase } from "../supabase";
 import { C, F, S } from "../theme";
@@ -22,6 +22,7 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
 
   async function handleLogin() {
     if (!email || !password) {
@@ -30,15 +31,22 @@ export default function LoginScreen({ navigation }) {
     }
     setLoading(true);
     setError("");
+
     const { error: err } = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: {
+        // When keepLoggedIn is false, session expires when app is closed
+        persistSession: keepLoggedIn,
+      },
     });
+
     setLoading(false);
     if (err) {
       setError(err.message);
       return;
     }
+
     const { data } = await supabase.auth.getUser();
     const isAdmin = ADMIN_EMAILS.includes(data.user?.email?.toLowerCase());
     navigation.replace(isAdmin ? "AdminHome" : "Home");
@@ -51,21 +59,17 @@ export default function LoginScreen({ navigation }) {
     >
       <StatusBar barStyle="light-content" backgroundColor={C.ink} />
 
-      {/* Top navy section */}
       <View style={s.top}>
         <View style={s.logoRow}>
-          <Image
-            source={require("../../assets/icon.png")}
-            style={{ width: 36, height: 36, borderRadius: 10 }}
-            resizeMode="contain"
-          />
+          <View style={s.logoMark}>
+            <Text style={s.logoD}>D</Text>
+          </View>
           <Text style={s.logoName}>DawaScan</Text>
         </View>
         <Text style={s.topTitle}>Welcome back</Text>
         <Text style={s.topSub}>مرحباً بعودتك</Text>
       </View>
 
-      {/* White card */}
       <ScrollView
         style={s.card}
         contentContainerStyle={s.cardBody}
@@ -109,6 +113,20 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        {/* Keep logged in toggle */}
+        <View style={s.keepRow}>
+          <View style={s.keepLeft}>
+            <Text style={s.keepTitle}>Keep me logged in</Text>
+            <Text style={s.keepSub}>Stay signed in when you close the app</Text>
+          </View>
+          <Switch
+            value={keepLoggedIn}
+            onValueChange={setKeepLoggedIn}
+            trackColor={{ false: C.silver, true: C.teal }}
+            thumbColor={C.white}
+          />
+        </View>
+
         <TouchableOpacity
           style={[s.primaryBtn, loading && s.primaryBtnDisabled]}
           onPress={handleLogin}
@@ -122,7 +140,6 @@ export default function LoginScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
-        {/* Divider */}
         <View style={s.dividerRow}>
           <View style={s.dividerLine} />
           <Text style={s.dividerText}>or</Text>
@@ -241,12 +258,26 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   passToggleText: { color: C.teal, fontSize: F.sm, fontWeight: F.semibold },
+  keepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: C.snow,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: C.silver,
+  },
+  keepLeft: { flex: 1, marginRight: 12 },
+  keepTitle: { fontSize: F.sm, fontWeight: F.semibold, color: C.ink2 },
+  keepSub: { fontSize: F.xs, color: C.slate, marginTop: 2 },
   primaryBtn: {
     backgroundColor: C.navy,
     borderRadius: 14,
     paddingVertical: 17,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 20,
   },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: {

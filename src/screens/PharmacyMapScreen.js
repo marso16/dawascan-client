@@ -22,18 +22,16 @@ import { C, F, S } from "../theme";
 // Fetch pharmacies from OpenStreetMap Overpass API
 async function fetchNearbyPharmacies(lat, lng, radiusKm = 3) {
   const radius = radiusKm * 1000;
-  const query = `
-    [out:json][timeout:25];
-    (
-      node["amenity"="pharmacy"](around:${radius},${lat},${lng});
-      way["amenity"="pharmacy"](around:${radius},${lat},${lng});
-    );
-    out center tags;
-  `;
+  const query = `[out:json][timeout:25];(node["amenity"="pharmacy"](around:${radius},${lat},${lng});way["amenity"="pharmacy"](around:${radius},${lat},${lng}););out center tags;`;
+  const params = new URLSearchParams();
+  params.append("data", query);
   const res = await axios.post(
     "https://overpass-api.de/api/interpreter",
-    `data=${encodeURIComponent(query)}`,
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+    params.toString(),
+    {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      timeout: 30000,
+    },
   );
   return res.data.elements
     .map((el) => ({
